@@ -24,7 +24,7 @@ function onHomepage(e) {
         // buttonSet.addButton(createToHabitButton(habitNames[i]));
         // cardSection.addWidget(createToHabitButton(habitNames[i]));
         cardSection.addWidget(createHabitAndRemoveHabitButtonSet(
-                                                habitNames[i]));
+                                        habitNames[i], "habit" + (i + 1)));
     }
 
     headerText = "You're currently tracking ";
@@ -58,8 +58,8 @@ function createAddHabitButton() {
     return button;
 }
 
-function createHabitAndRemoveHabitButtonSet(habitName) {
-    let habitButton = createToHabitButton(habitName);
+function createHabitAndRemoveHabitButtonSet(habitName, habitKey) {
+    let habitButton = createToHabitButton(habitName, habitKey);
     let removeHabitButton = createRemoveHabitButton(habitName);
     
     return CardService.newButtonSet()
@@ -67,24 +67,89 @@ function createHabitAndRemoveHabitButtonSet(habitName) {
         .addButton(removeHabitButton);
 }
 
+function getColor(index) {
+    //             Blue         Brown    Gray       Green       Orange
+    let colors = ["#2952A3", "#8D6F47", "#5A6986", "#0D7813", "#BE6D00", 
+    //    Pink      Purple      Red       Yellow
+        "#B1365F", "#7A367A", "#A32929", "#AB8B00",];
+    // return colors[Math.floor(Math.random() * colors.length)];
+    return colors[(index - 1) % colors.length];
+}
+
 // Button for each of the Hobbies, i.e. Competitive Programming
-function createToHabitButton(habitName) {
+function createToHabitButton(habitName, habitKey) {
+    let habitNumber = habitKey.substring(5, habitKey.length);
+    // Logger.log("habitNumber: " + habitNumber);
+    let color = getColor(parseInt(habitNumber));
+    // Logger.log(color);
     let action = CardService.newAction()
         .setFunctionName('createHabitDisplayCard')
         .setParameters({'habitName': habitName});
     let button = CardService.newTextButton()
         .setText(habitName)
         .setOnClickAction(action)
-        .setTextButtonStyle(CardService.TextButtonStyle.FILLED);
+        .setTextButtonStyle(CardService.TextButtonStyle.FILLED)
+        .setBackgroundColor(color);
     return button;
 }
 
+// Remove Habit button
+function createRemoveHabitButton(habitName) {
+    let action = CardService.newAction()
+        .setFunctionName('onRemoveHabitPressed')
+        .setParameters({'habitName': habitName});
+    let button = CardService.newImageButton()
+        .setIconUrl("https://i.postimg.cc/VNXYbnNh/icons8-remove-96.png")
+        .setOnClickAction(action);
+    return button;
+}
 function logUserProperties() {
     let userProperties = PropertiesService.getUserProperties();
     let data = userProperties.getProperties();
     for (let key in data) {
           Logger.log('Key: %s, Value: %s', key, data[key]);
     }
+}
+
+function onRemoveHabitPressed(e) {
+    let userProperties = PropertiesService.getUserProperties();
+
+    // Get the index of the habit to be removed
+    let habitName = e.parameters.habitName;
+    let habitNumber = 1;
+    let nameFound = false;
+    while (true) {
+        let name = userProperties.getProperty("habit" + habitNumber++);
+        if (name == habitName) {
+            habitNumber--;
+            nameFound = true;
+            break;
+        }
+    }
+
+    if (nameFound) {
+        // Remove that habit
+        userProperties.deleteProperty("habit" + habitNumber);
+
+        // Move up the habit numbers of the following proceeding habits
+        while (true) {
+            let name = userProperties.getProperty("habit" + ++habitNumber);
+
+            if (name == null) break;
+
+            userProperties.setProperty("habit" + (habitNumber - 1),
+                        userProperties.getProperty("habit" + habitNumber));
+            userProperties.deleteProperty("habit" + habitNumber);
+        }
+    }
+
+    let card = onHomepage(e);
+
+    let navigation = CardService.newNavigation()
+        .updateCard(card);
+    let actionResponse = CardService.newActionResponseBuilder()
+        .setNavigation(navigation);
+    return actionResponse.build();
 }
 
 // Handles when a habit is added. Homepage but displays the additional habit.
@@ -100,8 +165,10 @@ function onAddHabitPressed(e) {
     }
     habitNumber--;
 
-    userProperties.setProperty("habit" + habitNumber,
-                                e.formInput["text_input_habit_key"]);
+    if (e.formInput["text_input_habit_key"].length != 0) {
+        userProperties.setProperty("habit" + habitNumber,
+                                    e.formInput["text_input_habit_key"]);
+    }
     
     logUserProperties();
 
